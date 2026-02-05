@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
-import 'dart:async';
+import '../game/character.dart';
+import '../game/game_controller.dart';
+import '../game/game_config.dart';
 import 'main_menu_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -12,102 +13,46 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   late AnimationController _animationController;
-  late Animation<double> _positionAnimation;
-  double _currentPosition = 0.0;
-  double _targetPosition = 0.0;
-  double _screenWidth = 0.0;
-  static const double _characterWidth = 300.0;
-  static const double _sensitivity = 50.0;
+  late Character _character;
+  late GameController _gameController;
 
   @override
   void initState() {
     super.initState();
 
-    // Initialize animation controller
+    // Initialize game logic
+    _character = Character();
+    _gameController = GameController(_character);
+
+    // Initialize animation controller for smooth updates
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: GameConfig.animationFrameDuration),
     );
 
-    _positionAnimation = Tween<double>(
-      begin: _currentPosition,
-      end: _targetPosition,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
-
-    _positionAnimation.addListener(() {
+    // Update game state each frame
+    _animationController.addListener(() {
       if (mounted) {
-        setState(() {
-          _currentPosition = _positionAnimation.value;
-        });
+        _gameController.update();
+        setState(() {}); // Trigger rebuild to show updated position
       }
     });
+
+    // Start continuous animation
+    _animationController.repeat();
 
     // Delay accelerometer start to ensure widget is fully initialized
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _startAccelerometer();
+        _gameController.startAccelerometer();
       }
     });
   }
 
-  void _startAccelerometer() {
-    try {
-      _accelerometerSubscription = accelerometerEventStream().listen(
-        (AccelerometerEvent event) {
-          if (!mounted) return;
-
-          // Use X-axis for left/right movement
-          // Negative X = tilt left, Positive X = tilt right
-          double newPosition = event.x * _sensitivity;
-
-          // Clamp position to screen bounds (will be updated in build)
-          if (_screenWidth > 0) {
-            final maxPosition = (_screenWidth - _characterWidth) / 2;
-            newPosition = newPosition.clamp(-maxPosition, maxPosition);
-          }
-
-          if ((_targetPosition - newPosition).abs() > 0.1) {
-            if (mounted) {
-              setState(() {
-                _targetPosition = newPosition;
-                _positionAnimation = Tween<double>(
-                  begin: _currentPosition,
-                  end: _targetPosition,
-                ).animate(CurvedAnimation(
-                  parent: _animationController,
-                  curve: Curves.easeOut,
-                ));
-              });
-              if (mounted) {
-                _animationController.forward(from: 0.0);
-              }
-            }
-          }
-        },
-        onError: (error) {
-          // Handle error (e.g., sensor not available)
-          if (mounted) {
-            print('Accelerometer error: $error');
-          }
-        },
-        cancelOnError: false,
-      );
-    } catch (e) {
-      // Handle initialization error
-      if (mounted) {
-        print('Failed to start accelerometer: $e');
-      }
-    }
-  }
-
   @override
   void dispose() {
-    _accelerometerSubscription?.cancel();
+    _gameController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -150,17 +95,13 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Update screen width for bounds calculation
+    // Update screen dimensions in character
     final screenSize = MediaQuery.of(context).size;
-    _screenWidth = screenSize.width;
+    _character.updateScreenDimensions(screenSize.width);
 
     // Calculate center position
-    final centerX = screenSize.width / 2 - _characterWidth / 2;
-    final centerY = screenSize.height / 2 - _characterWidth / 2;
-
-    // Calculate clamped position
-    final maxPosition = (_screenWidth - _characterWidth) / 2;
-    final clampedPosition = _currentPosition.clamp(-maxPosition, maxPosition);
+    final centerX = screenSize.width / 2 - _character.characterWidth / 2;
+    final centerY = screenSize.height / 2 - _character.characterWidth / 2;
 
     return Scaffold(
       body: Container(
@@ -181,13 +122,19 @@ class _GameScreenState extends State<GameScreen>
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 100),
                 curve: Curves.easeOut,
-                left: centerX + clampedPosition,
+                left: centerX + _character.position,
                 top: centerY,
-                child: Image.asset(
-                  'assets/character.png',
-                  width: _characterWidth,
-                  height: _characterWidth,
-                  fit: BoxFit.contain,
+                child: Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()
+                    ..scale(_character.isMovingLeft ? -1.0 : 1.0,
+                        1.0), // Mirror when moving left
+                  child: Image.asset(
+                    'assets/character.png',
+                    width: _character.characterWidth,
+                    height: _character.characterWidth,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               // Menu button in bottom left
