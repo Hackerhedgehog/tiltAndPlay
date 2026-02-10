@@ -1,65 +1,64 @@
 import 'package:flutter/material.dart';
-import '../game/character.dart';
-import '../game/game_controller.dart';
-import '../game/game_config.dart';
+import 'package:flame/game.dart';
+import '../game/flame_game.dart';
+import '../game/game_level.dart';
 import 'main_menu_screen.dart';
+import 'debug_overlay.dart';
+import 'win_overlay.dart';
+import 'lose_overlay.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final GameLevel level;
+
+  const GameScreen({super.key, required this.level});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Character _character;
-  late GameController _gameController;
+class _GameScreenState extends State<GameScreen> {
+  late TiltAndPlayGame _game;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize game logic
-    _character = Character();
-    _gameController = GameController(_character);
-
-    // Initialize animation controller for smooth updates
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: GameConfig.animationFrameDuration),
-    );
-
-    // Update game state each frame
-    _animationController.addListener(() {
-      if (mounted) {
-        _gameController.update();
-        setState(() {}); // Trigger rebuild to show updated position
-      }
-    });
-
-    // Start continuous animation
-    _animationController.repeat();
-
-    // Delay accelerometer start to ensure widget is fully initialized
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _gameController.startAccelerometer();
-      }
-    });
+    _game = TiltAndPlayGame();
+    _game.initializeLevel(widget.level);
+    // Pause the game during loading
+    _game.pauseEngine();
+    _waitForGameLoad();
   }
 
-  @override
-  void dispose() {
-    _gameController.dispose();
-    _animationController.dispose();
-    super.dispose();
+  Future<void> _waitForGameLoad() async {
+    // Wait for the game to be fully loaded
+    // Give it time to initialize all components
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Wait for game size to be available and components to load
+    while (_game.size.x == 0 || _game.size.y == 0) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+
+    // Additional delay to ensure all sprites are loaded
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      // Resume the game once loading is complete
+      _game.resumeEngine();
+    }
   }
 
   void _showMenu(BuildContext context) {
+    // Pause the game when menu opens
+    _game.pauseEngine();
+
     showDialog(
       context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Menu'),
@@ -71,7 +70,10 @@ class _GameScreenState extends State<GameScreen>
                 title: const Text('Restart'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  // TODO: Implement restart functionality
+                  // Restart the game
+                  _game.resetGame();
+                  // Resume the game after restart
+                  _game.resumeEngine();
                 },
               ),
               ListTile(
@@ -90,19 +92,16 @@ class _GameScreenState extends State<GameScreen>
           ),
         );
       },
-    );
+    ).then((_) {
+      // Resume the game when menu is closed (if not quitting)
+      if (mounted) {
+        _game.resumeEngine();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Update screen dimensions in character
-    final screenSize = MediaQuery.of(context).size;
-    _character.updateScreenDimensions(screenSize.width);
-
-    // Calculate center position
-    final centerX = screenSize.width / 2 - _character.characterWidth / 2;
-    final centerY = screenSize.height / 2 - _character.characterWidth / 2;
-
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -118,35 +117,50 @@ class _GameScreenState extends State<GameScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // Character image that moves based on accelerometer
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 100),
-                curve: Curves.easeOut,
-                left: centerX + _character.position,
-                top: centerY,
-                child: Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..scale(_character.isMovingLeft ? -1.0 : 1.0,
-                        1.0), // Mirror when moving left
-                  child: Image.asset(
-                    'assets/character.png',
-                    width: _character.characterWidth,
-                    height: _character.characterWidth,
-                    fit: BoxFit.contain,
+              // Flame game widget - handles rendering and updates efficiently
+              GameWidget<TiltAndPlayGame>.controlled(
+                gameFactory: () => _game,
+              ),
+              // Loading overlay - shows while game is initializing
+              if (_isLoading)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.9),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset(
+                          'assets/logo.png',
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 40),
+                        const CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              // Debug overlay - shows FPS, velocity, and accelerometer data
+              if (!_isLoading) DebugOverlay(game: _game),
+              // Win overlay - shows when player wins
+              if (!_isLoading) WinOverlay(game: _game),
+              // Lose overlay - shows when player loses
+              if (!_isLoading) LoseOverlay(game: _game),
               // Menu button in bottom left
-              Positioned(
-                left: 16,
-                bottom: 16,
-                child: FloatingActionButton(
-                  onPressed: () => _showMenu(context),
-                  backgroundColor: Colors.white.withValues(alpha: 0.8),
-                  child: const Icon(Icons.menu, color: Colors.black),
+              if (!_isLoading)
+                Positioned(
+                  left: 16,
+                  bottom: 16,
+                  child: FloatingActionButton(
+                    onPressed: () => _showMenu(context),
+                    backgroundColor: Colors.white.withValues(alpha: 0.8),
+                    child: const Icon(Icons.menu, color: Colors.black),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
