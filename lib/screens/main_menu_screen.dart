@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../game/game_level.dart';
 import 'game_screen.dart';
+import 'tutorial_slideshow_screen.dart';
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -37,9 +38,7 @@ class MainMenuScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const GameScreen(
-                          level: GameLevel.tutorial,
-                        ),
+                        builder: (context) => const TutorialSlideshowScreen(),
                       ),
                     );
                   },

@@ -19,10 +19,9 @@ class FlameObstacle extends SpriteComponent with HasGameReference {
 
   FlameObstacle({
     required this.level,
-    required double worldY,
-    required double worldX,
-  })  : worldY = worldY,
-        worldX = worldX;
+    required this.worldY,
+    required this.worldX,
+  });
 
   @override
   Future<void> onLoad() async {

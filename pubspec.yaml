@@ -13,6 +13,7 @@ dependencies:
   sensors_plus: ^4.0.0
   vector_math: ^2.2.0
   flame: ^1.18.0
+  flame_audio: ^2.11.0
 
 dev_dependencies:
   flutter_test:
@@ -25,3 +26,5 @@ flutter:
   assets:
     - assets/
     - assets/images/
+    - assets/sounds/sfx/
+    - assets/sounds/music/

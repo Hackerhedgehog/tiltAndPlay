@@ -1,4 +1,5 @@
 import 'package:flame/components.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'game_config.dart';
 import 'flame_platform.dart';
 import 'flame_obstacle.dart';
@@ -182,6 +183,7 @@ class FlameCharacter extends SpriteComponent with HasGameReference {
 
       // Apply upward bounce force (positive velocityY = upward in world space)
       _velocityY = GameConfig.bounceForce;
+      FlameAudio.play('sfx/jump.mp3');
     }
   }
 

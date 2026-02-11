@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'flame_character.dart';
 import 'flame_platform.dart';
@@ -95,6 +96,12 @@ class TiltAndPlayGame extends FlameGame {
 
     // Start accelerometer
     _startAccelerometer();
+
+    // Audio: use sounds/ prefix (assets/sounds/sfx/, assets/sounds/music/)
+    FlameAudio.updatePrefix('assets/sounds/');
+    FlameAudio.bgm.initialize();
+    FlameAudio.play('sfx/game-start.mp3');
+    FlameAudio.bgm.play('music/music.mp3');
   }
 
   void _startAccelerometer() {
@@ -110,7 +117,6 @@ class TiltAndPlayGame extends FlameGame {
           _currentTiltX = event.x;
         },
         onError: (error) {
-          print('Accelerometer error: $error');
           _currentTiltX = 0.0;
           character.stop();
         },
@@ -118,7 +124,6 @@ class TiltAndPlayGame extends FlameGame {
       );
       _isInitialized = true;
     } catch (e) {
-      print('Failed to start accelerometer: $e');
       _currentTiltX = 0.0;
       character.stop();
     }
@@ -276,6 +281,7 @@ class TiltAndPlayGame extends FlameGame {
     if (!_gameWon && !_gameLost) {
       _gameWon = true;
       gameWonNotifier.value = true;
+      FlameAudio.bgm.stop();
       pauseEngine();
     }
   }
@@ -285,6 +291,8 @@ class TiltAndPlayGame extends FlameGame {
     if (!_gameLost && !_gameWon) {
       _gameLost = true;
       gameLostNotifier.value = true;
+      FlameAudio.bgm.stop();
+      FlameAudio.play('sfx/game-over.mp3');
       pauseEngine();
     }
   }
@@ -294,6 +302,7 @@ class TiltAndPlayGame extends FlameGame {
     _accelerometerSubscription?.cancel();
     _accelerometerSubscription = null;
     _isInitialized = false;
+    FlameAudio.bgm.stop();
     gameWonNotifier.dispose();
     super.onRemove();
   }
@@ -346,6 +355,8 @@ class TiltAndPlayGame extends FlameGame {
 
     character.reset();
     character.updateScreenDimensions(size.x, _cameraY);
+    FlameAudio.play('sfx/game-start.mp3');
+    FlameAudio.bgm.play('music/music.mp3');
     resumeEngine();
   }
 }
