@@ -144,6 +144,38 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                 ),
+              // Progress tracker at top (platforms jumped on / total in level)
+              if (!_isLoading)
+                Positioned(
+                  top: 16,
+                  left: 0,
+                  right: 0,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _game.landedPlatformCountNotifier,
+                    builder: (context, landed, _) {
+                      return Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '$landed / ${_game.totalPlatformCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               // Debug overlay - shows FPS, velocity, and accelerometer data
               if (!_isLoading) DebugOverlay(game: _game),
               // Win overlay - shows when player wins

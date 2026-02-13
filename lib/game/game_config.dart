@@ -17,6 +17,10 @@ class GameConfig {
 
   // Camera settings
   static const double maxJumpHeight = 600.0; // Maximum jump height (pixels)
+  static const double obstacleMinDistanceAbovePlatform =
+      500.0; // Obstacle must be at least this far above platform top
+  static const double obstacleMinDistanceBelowPlatform =
+      200.0; // Obstacle must be at least this far below platform bottom
   static const double platformSpacing =
       300.0; // Vertical spacing between platforms (pixels)
   static const double platformSpawnDistance =

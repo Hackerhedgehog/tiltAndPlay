@@ -27,6 +27,16 @@ class TiltAndPlayGame extends FlameGame {
   bool _gameLost = false;
   final ValueNotifier<bool> gameLostNotifier = ValueNotifier<bool>(false);
 
+  // Progress: unique platforms landed on (spawned platforms only, not base)
+  final Set<FlamePlatform> _landedPlatforms = {};
+  final ValueNotifier<int> landedPlatformCountNotifier = ValueNotifier<int>(0);
+
+  /// Number of unique platforms the player has jumped on (spawned platforms only).
+  int get landedPlatformCount => _landedPlatforms.length;
+
+  /// Total platforms in the level (from level config).
+  int get totalPlatformCount => gameLevel.platformCount;
+
   // Camera system
   double _cameraY = 0.0; // Camera Y position (world coordinates, 0 = bottom)
   double _highestCharacterY =
@@ -163,9 +173,13 @@ class TiltAndPlayGame extends FlameGame {
     // Check collision with base platform and apply bounce
     character.checkPlatformCollision(basePlatform, _cameraY);
 
-    // Check collision with all spawned platforms
+    // Check collision with all spawned platforms and track progress
     for (final platform in platforms) {
-      character.checkPlatformCollision(platform, _cameraY);
+      if (character.checkPlatformCollision(platform, _cameraY)) {
+        if (_landedPlatforms.add(platform)) {
+          landedPlatformCountNotifier.value = _landedPlatforms.length;
+        }
+      }
     }
 
     // Check collision with all obstacles (lose condition)
@@ -304,6 +318,7 @@ class TiltAndPlayGame extends FlameGame {
     _isInitialized = false;
     FlameAudio.bgm.stop();
     gameWonNotifier.dispose();
+    landedPlatformCountNotifier.dispose();
     super.onRemove();
   }
 
@@ -313,6 +328,8 @@ class TiltAndPlayGame extends FlameGame {
     gameWonNotifier.value = false;
     _gameLost = false;
     gameLostNotifier.value = false;
+    _landedPlatforms.clear();
+    landedPlatformCountNotifier.value = 0;
     _cameraY = 0.0;
     _highestCharacterY = 0.0;
 

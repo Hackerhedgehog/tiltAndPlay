@@ -14,7 +14,7 @@ class FlameObstacle extends SpriteComponent with HasGameReference {
 
   /// Get obstacle width percent based on level
   double get obstacleWidthPercent {
-    return level == GameLevel.level2 ? 0.20 : 0.15;
+    return level.useLevel2Sizes ? 0.20 : 0.15;
   }
 
   FlameObstacle({

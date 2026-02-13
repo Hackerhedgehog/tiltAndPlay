@@ -102,6 +102,30 @@ class MainMenuScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
+                const SizedBox(height: 20),
+                // Level 3 button
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const GameScreen(
+                          level: GameLevel.level3,
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 16,
+                    ),
+                    minimumSize: const Size(200, 50),
+                  ),
+                  child: const Text(
+                    'Level 3',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
               ],
             ),
           ),

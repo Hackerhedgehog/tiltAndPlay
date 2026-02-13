@@ -9,7 +9,7 @@ class FlamePlatform extends SpriteComponent with HasGameReference {
   /// Get platform width percent based on level
   double get platformWidthPercent {
     if (level == null) return 0.20; // Default for base platform
-    return level == GameLevel.level2 ? 0.10 : 0.20;
+    return level!.useLevel2Sizes ? 0.10 : 0.20;
   }
 
   /// World Y position (0 = bottom of world, increases upward)

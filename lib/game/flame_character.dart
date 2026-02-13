@@ -132,10 +132,18 @@ class FlameCharacter extends SpriteComponent with HasGameReference {
         0.7; // Balance between smoothness and responsiveness
     _worldY += (_targetWorldY - _worldY) * smoothingFactor;
 
-    // Clamp horizontal position to screen bounds
+    // Wrap horizontal position: off left → appear right, off right → appear left
     if (screenWidth > 0) {
       final maxPosition = (screenWidth - size.x) / 2;
-      _positionX = _positionX.clamp(-maxPosition, maxPosition);
+      final range = 2 * maxPosition;
+      if (range > 0) {
+        while (_positionX > maxPosition) {
+          _positionX -= range;
+        }
+        while (_positionX < -maxPosition) {
+          _positionX += range;
+        }
+      }
     }
 
     // Update sprite position based on world Y and camera (only if game size is available)
@@ -154,8 +162,9 @@ class FlameCharacter extends SpriteComponent with HasGameReference {
     }
   }
 
-  /// Check collision with platform and apply bounce
-  void checkPlatformCollision(FlamePlatform platform, double cameraY) {
+  /// Check collision with platform and apply bounce.
+  /// Returns true if a bounce was applied.
+  bool checkPlatformCollision(FlamePlatform platform, double cameraY) {
     // Get character bounds (using center anchor)
     final charLeft = position.x - size.x / 2;
     final charRight = position.x + size.x / 2;
@@ -184,7 +193,9 @@ class FlameCharacter extends SpriteComponent with HasGameReference {
       // Apply upward bounce force (positive velocityY = upward in world space)
       _velocityY = GameConfig.bounceForce;
       FlameAudio.play('sfx/jump.mp3');
+      return true;
     }
+    return false;
   }
 
   /// Reset character to initial position
@@ -226,7 +237,7 @@ class FlameCharacter extends SpriteComponent with HasGameReference {
   }
 
   /// Check collision with obstacle (lose condition)
-  /// Uses a smaller collision area than the sprite (10% smaller width, 5% smaller height)
+  /// Uses a smaller collision area than the sprite (20% smaller width, 10% smaller height)
   bool checkObstacleCollision(FlameObstacle obstacle) {
     // Get character bounds (using center anchor)
     final charLeft = position.x - size.x / 2;
@@ -235,10 +246,10 @@ class FlameCharacter extends SpriteComponent with HasGameReference {
     final charBottom = position.y + size.y / 2;
 
     // Get obstacle collision bounds (using center anchor, but smaller than sprite)
-    // Collision width is 10% smaller (90% of sprite width)
-    // Collision height is 5% smaller (95% of sprite height)
-    final collisionWidth = obstacle.size.x * 0.9;
-    final collisionHeight = obstacle.size.y * 0.95;
+    // Collision width is 20% smaller (80% of sprite width)
+    // Collision height is 10% smaller (90% of sprite height)
+    final collisionWidth = obstacle.size.x * 0.8;
+    final collisionHeight = obstacle.size.y * 0.9;
 
     final obstacleLeft = obstacle.position.x - collisionWidth / 2;
     final obstacleRight = obstacle.position.x + collisionWidth / 2;

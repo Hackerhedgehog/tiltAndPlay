@@ -68,7 +68,7 @@ class PlatformSpawner {
     final platformPositions = <Map<String, double>>[];
     for (final p in platforms) {
       final platformWidth =
-          screenWidth * (level == GameLevel.level2 ? 0.10 : 0.20);
+          screenWidth * (level.useLevel2Sizes ? 0.10 : 0.20);
       platformPositions.add({
         'bottom': p.worldY,
         'top': p.worldY + p.size.y, // platform anchor is bottomCenter
@@ -79,71 +79,121 @@ class PlatformSpawner {
 
     // Spawn obstacles spread evenly across the full level height
     final obstacleWidth =
-        screenWidth * (level == GameLevel.level2 ? 0.20 : 0.15);
+        screenWidth * (level.useLevel2Sizes ? 0.20 : 0.15);
     final obstacleHeightEst = obstacleWidth; // conservative estimate
+    final obstacleHalfWidth = obstacleWidth / 2;
+    final obstacleTop = (double worldY) => worldY + obstacleHeightEst / 2;
+    final obstacleBottom = (double worldY) => worldY - obstacleHeightEst / 2;
 
     // Level vertical range: from first to last platform
     const levelMinY = GameConfig.platformSpacing;
     final levelMaxY = GameConfig.platformSpacing * platforms.length;
     final levelRange = levelMaxY - levelMinY;
 
+    // Compute safe Y ranges (gaps between forbidden zones) for fallback placement
+    // Forbidden when overlapping: [platformBottom - 200, platformTop + 500]
+    // Safe: obstacle entirely below (obsTop <= platformBottom - 200) or above (obsBottom >= platformTop + 500)
+    final h = obstacleHeightEst / 2;
+    final safeYRanges = <({double start, double end})>[];
+    for (int i = 0; i < platformPositions.length; i++) {
+      final p = platformPositions[i];
+      final platformBottom = p['bottom']!;
+      final platformTop = p['top']!;
+
+      if (i == 0) {
+        // Below first platform: Y + h <= platformBottom - 200
+        final end = platformBottom - GameConfig.obstacleMinDistanceBelowPlatform - h;
+        if (end > levelMinY) {
+          safeYRanges.add((start: levelMinY, end: end));
+        }
+      }
+      if (i < platformPositions.length - 1) {
+        final nextBottom = platformPositions[i + 1]['bottom']!;
+        final gapStart = platformTop + GameConfig.obstacleMinDistanceAbovePlatform + h;
+        final gapEnd = nextBottom - GameConfig.obstacleMinDistanceBelowPlatform - h;
+        if (gapEnd > gapStart) {
+          safeYRanges.add((start: gapStart, end: gapEnd));
+        }
+      }
+      if (i == platformPositions.length - 1) {
+        final start = platformTop + GameConfig.obstacleMinDistanceAbovePlatform + h;
+        safeYRanges.add((start: start, end: levelMaxY + 1000));
+      }
+    }
+    if (safeYRanges.isEmpty) {
+      safeYRanges.add((start: levelMinY, end: levelMaxY + 1000));
+    }
+
+    bool isValidPosition(double worldX, double worldY) {
+      final obsBottom = obstacleBottom(worldY);
+      final obsTop = obstacleTop(worldY);
+
+      for (final platform in platformPositions) {
+        final platformHalfWidth = platform['width']! / 2;
+        final platformX = platform['x']!;
+        final platformBottom = platform['bottom']!;
+        final platformTop = platform['top']!;
+
+        final horizontalOverlap =
+            (worldX - obstacleHalfWidth < platformX + platformHalfWidth) &&
+                (worldX + obstacleHalfWidth > platformX - platformHalfWidth);
+
+        if (horizontalOverlap) {
+          // Forbidden zone: [platformBottom - 200, platformTop + 500]
+          // Obstacle must be entirely below or entirely above
+          final forbiddenStart = platformBottom - GameConfig.obstacleMinDistanceBelowPlatform;
+          final forbiddenEnd = platformTop + GameConfig.obstacleMinDistanceAbovePlatform;
+
+          if (obsTop > forbiddenStart && obsBottom < forbiddenEnd) {
+            return false; // Overlaps forbidden zone (on platform or too close)
+          }
+        }
+      }
+      return true;
+    }
+
     for (int i = 0; i < obstacleCount; i++) {
-      int attempts = 0;
       bool positionValid = false;
       double worldY = 0.0;
       double worldX = 0.0;
 
-      // Try to find a valid position that doesn't overlap with platforms
-      while (!positionValid && attempts < 50) {
-        attempts++;
-
-        // Random X position (with some padding from edges)
+      // Strategy 1: Random placement with even spread
+      for (int attempt = 0; attempt < 150 && !positionValid; attempt++) {
         final padding = screenWidth * 0.1;
         final minX = -screenWidth / 2 + padding;
         final maxX = screenWidth / 2 - padding;
         worldX = minX + random.nextDouble() * (maxX - minX);
 
-        // World Y - spread obstacles evenly across the whole level
         final segmentSize = levelRange / (obstacleCount + 1);
         final baseWorldY = levelMinY + segmentSize * (i + 1);
-        final randomOffset = (random.nextDouble() - 0.5) * segmentSize * 0.5;
+        final randomOffset = (random.nextDouble() - 0.5) * segmentSize * 0.6;
         worldY = baseWorldY + randomOffset;
 
-        // Check: when horizontally overlapping, obstacle must be at least
-        // platformSpacing above the platform top
-        positionValid = true;
-        final obstacleHalfWidth = obstacleWidth / 2;
-        final obstacleBottom = worldY - obstacleHeightEst / 2;
+        positionValid = isValidPosition(worldX, worldY);
+      }
 
-        for (final platform in platformPositions) {
-          final platformHalfWidth = platform['width']! / 2;
-          final platformX = platform['x']!;
-          final platformTop = platform['top']!;
-
-          // Check horizontal overlap
-          final horizontalOverlap =
-              (worldX - obstacleHalfWidth < platformX + platformHalfWidth) &&
-                  (worldX + obstacleHalfWidth > platformX - platformHalfWidth);
-
-          if (horizontalOverlap) {
-            // Only enforce when obstacle is ABOVE platform (would block player)
-            // Obstacle must be at least platformSpacing above platform top
-            if (obstacleBottom > platformTop &&
-                obstacleBottom < platformTop + GameConfig.platformSpacing) {
-              positionValid = false;
-              break;
-            }
+      // Strategy 2: Place in known safe Y ranges
+      if (!positionValid) {
+        for (final range in safeYRanges) {
+          if (range.end <= range.start) continue;
+          for (int attempt = 0; attempt < 30 && !positionValid; attempt++) {
+            worldY = range.start + random.nextDouble() * (range.end - range.start);
+            final padding = screenWidth * 0.1;
+            final minX = -screenWidth / 2 + padding;
+            final maxX = screenWidth / 2 - padding;
+            worldX = minX + random.nextDouble() * (maxX - minX);
+            positionValid = isValidPosition(worldX, worldY);
           }
+          if (positionValid) break;
         }
       }
 
       if (positionValid) {
-        final obstacle = FlameObstacle(
+        obstacles.add(FlameObstacle(
           level: level,
           worldY: worldY,
           worldX: worldX,
-        );
-        obstacles.add(obstacle);
+        ));
       }
     }
 
@@ -159,38 +209,36 @@ class PlatformSpawner {
     final maxX = screenWidth / 2 - padding;
 
     final obstacleWidth =
-        screenWidth * (level == GameLevel.level2 ? 0.20 : 0.15);
+        screenWidth * (level.useLevel2Sizes ? 0.20 : 0.15);
     final obstacleHeightEst = obstacleWidth;
     final obstacleHalfWidth = obstacleWidth / 2;
-    final obstacleBottom = worldY - obstacleHeightEst / 2;
+    final obsBottom = worldY - obstacleHeightEst / 2;
+    final obsTop = worldY + obstacleHeightEst / 2;
 
-    int attempts = 0;
     double worldX = 0.0;
     bool positionValid = false;
 
-    // Try to find a valid position: when horizontally overlapping, obstacle
-    // must be at least platformSpacing above the platform top
-    while (!positionValid && attempts < 50) {
-      attempts++;
+    for (int attempt = 0; attempt < 100 && !positionValid; attempt++) {
       worldX = minX + random.nextDouble() * (maxX - minX);
-
       positionValid = true;
 
       for (final platform in platforms) {
         final platformWidth =
-            screenWidth * (level == GameLevel.level2 ? 0.10 : 0.20);
+            screenWidth * (level.useLevel2Sizes ? 0.10 : 0.20);
         final platformHalfWidth = platformWidth / 2;
+        final platformBottom = platform.worldY;
         final platformTop = platform.worldY + platform.size.y;
 
-        // Check horizontal overlap
         final horizontalOverlap = (worldX - obstacleHalfWidth <
                 platform.worldX + platformHalfWidth) &&
             (worldX + obstacleHalfWidth > platform.worldX - platformHalfWidth);
 
         if (horizontalOverlap) {
-          // Only enforce when obstacle is ABOVE platform
-          if (obstacleBottom > platformTop &&
-              obstacleBottom < platformTop + GameConfig.platformSpacing) {
+          final forbiddenStart =
+              platformBottom - GameConfig.obstacleMinDistanceBelowPlatform;
+          final forbiddenEnd =
+              platformTop + GameConfig.obstacleMinDistanceAbovePlatform;
+          if (obsTop > forbiddenStart && obsBottom < forbiddenEnd) {
             positionValid = false;
             break;
           }
