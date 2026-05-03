@@ -28,8 +28,6 @@ A vertical platformer game where you control a character by tilting your phone. 
 
 ## Setup Instructions
 
-Setup is not required. You may [download](https://drive.google.com/file/d/1_SZ2sxI2UJMYDoZSE-hSsZCcd_-swzrn/view?usp=sharing) and install the android app.
-
 ### Prerequisites
 
 - [Flutter SDK](https://flutter.dev/docs/get-started/install) (>= 3.0.0)
