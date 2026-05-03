@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 import '../game/flame_game.dart';
+import '../widgets/web_tilt_joystick.dart';
 import '../game/game_level.dart';
 import 'main_menu_screen.dart';
 import 'debug_overlay.dart';
@@ -191,6 +193,24 @@ class _GameScreenState extends State<GameScreen> {
                     onPressed: () => _showMenu(context),
                     backgroundColor: Colors.white.withValues(alpha: 0.8),
                     child: const Icon(Icons.menu, color: Colors.black),
+                  ),
+                ),
+              // Web: horizontal joystick simulates accelerometer X
+              if (!_isLoading && kIsWeb)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 24,
+                  child: Center(
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _game.joystickResetNotifier,
+                      builder: (context, _, __) {
+                        return WebTiltJoystick(
+                          key: ValueKey(_game.joystickResetNotifier.value),
+                          onTiltChanged: _game.setJoystickTiltNormalized,
+                        );
+                      },
+                    ),
                   ),
                 ),
             ],

@@ -6,6 +6,8 @@ class GameConfig {
   // Movement settings
   static const double sensitivity = 150.0; // Velocity multiplier
   static const double deadZone = 0.3; // Ignore small tilts
+  /// Maps web joystick (-1..1) into the same ballpark as accelerometer X (m/s²).
+  static const double webJoystickSimulatedTiltMax = 8.0;
   static const double maxVelocity = 400.0;
   static const double acceleration = 2.5;
 

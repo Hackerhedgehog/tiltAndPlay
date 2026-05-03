@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 import 'package:flame_audio/flame_audio.dart';
@@ -26,6 +27,9 @@ class TiltAndPlayGame extends FlameGame {
   final ValueNotifier<bool> gameWonNotifier = ValueNotifier<bool>(false);
   bool _gameLost = false;
   final ValueNotifier<bool> gameLostNotifier = ValueNotifier<bool>(false);
+
+  /// Bumped on [resetGame] so web UI can rebuild input widgets (e.g. joystick).
+  final ValueNotifier<int> joystickResetNotifier = ValueNotifier<int>(0);
 
   // Progress: unique platforms landed on (spawned platforms only, not base)
   final Set<FlamePlatform> _landedPlatforms = {};
@@ -117,6 +121,12 @@ class TiltAndPlayGame extends FlameGame {
   void _startAccelerometer() {
     if (_isInitialized) return;
 
+    if (kIsWeb) {
+      _currentTiltX = 0.0;
+      _isInitialized = true;
+      return;
+    }
+
     try {
       _accelerometerSubscription = accelerometerEventStream(
               samplingPeriod: const Duration(milliseconds: 10))
@@ -137,6 +147,13 @@ class TiltAndPlayGame extends FlameGame {
       _currentTiltX = 0.0;
       character.stop();
     }
+  }
+
+  /// Web-only: [-1, 1] from the horizontal joystick → fake accelerometer X.
+  void setJoystickTiltNormalized(double normalized) {
+    final clamped = normalized.clamp(-1.0, 1.0);
+    // Opposite sign from raw accelerometer x: positive joystick (right) → rightward motion.
+    _currentTiltX = -clamped * GameConfig.webJoystickSimulatedTiltMax;
   }
 
   @override
@@ -318,12 +335,15 @@ class TiltAndPlayGame extends FlameGame {
     _isInitialized = false;
     FlameAudio.bgm.stop();
     gameWonNotifier.dispose();
+    gameLostNotifier.dispose();
     landedPlatformCountNotifier.dispose();
+    joystickResetNotifier.dispose();
     super.onRemove();
   }
 
   /// Reset game state
   void resetGame() {
+    joystickResetNotifier.value++;
     _gameWon = false;
     gameWonNotifier.value = false;
     _gameLost = false;
@@ -371,6 +391,7 @@ class TiltAndPlayGame extends FlameGame {
     basePlatform.updatePosition(_cameraY);
 
     character.reset();
+    _currentTiltX = 0.0;
     character.updateScreenDimensions(size.x, _cameraY);
     FlameAudio.play('sfx/game-start.mp3');
     FlameAudio.bgm.play('music/music.mp3');
